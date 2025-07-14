@@ -2,7 +2,12 @@
 import { Button } from "@/components/ui/button";
 import { FileText, Menu, Sparkles } from "lucide-react";
 
-export function Header({setOpen,isOpen}) {
+interface HeaderProps {
+  setOpen: (open: boolean) => void;
+  isOpen: boolean;
+}
+
+export function Header({setOpen,isOpen}: HeaderProps) {
   return (
     <header className="bg-white/80 backdrop-blur-md border-b border-gray-200/50 shadow-sm">
       <div className="px-4 md:px-6 py-2">

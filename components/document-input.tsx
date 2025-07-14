@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { Upload, Link, FileText, FileSpreadsheet, File } from "lucide-react"
-import "@/lib/pdfWorker" // Load worker first
+import "@/lib/pdfWorker"
 import * as pdfjsLib from "pdfjs-dist"
 
 interface DocumentInputProps {

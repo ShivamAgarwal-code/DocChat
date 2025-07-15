@@ -78,7 +78,7 @@ export function ChatHistory({ onChatSelect }: ChatHistoryProps) {
               {groupedConversations
                 .slice(-10)
                 .reverse()
-                .map((conversation: any, index: any) => (
+                .map((conversation, index) => (
                   <Card
                     key={index}
                     className="p-3 max-w-[17rem] w-full hover:bg-gray-50/80 cursor-pointer transition-all duration-200 bg-white/60 border-gray-200/50"

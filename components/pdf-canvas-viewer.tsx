@@ -1,3 +1,4 @@
+// SmartDocumentViewer.tsx
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -5,7 +6,7 @@ import * as pdfjs from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist/types/src/display/api";
 import axios from "axios";
 
-import "@/lib/pdfWorker"
+import "@/lib/pdfWorker" // Load worker first
 
 
 interface SmartDocumentViewerProps {

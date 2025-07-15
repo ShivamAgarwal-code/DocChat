@@ -1,109 +1,144 @@
-"use client"
-import { useState } from "react"
-import type React from "react"
+"use client";
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card } from "@/components/ui/card"
-import { Upload, Link, FileText, FileSpreadsheet, File } from "lucide-react"
-import "@/lib/pdfWorker"
-import * as pdfjsLib from "pdfjs-dist"
+import { useState } from "react";
+import type React from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import {
+  Upload,
+  Link,
+  FileText,
+  FileSpreadsheet,
+  File,
+  AlertCircle,
+  CheckCircle,
+} from "lucide-react";
+import { getDocument } from "pdfjs-dist";
 
 interface DocumentInputProps {
-  onDocumentLoad: (url: string, name: string, type: string,documentData:any) => void
+  onDocumentLoad: (
+    url: string,
+    name: string,
+    type: string,
+    documentData: any
+  ) => void;
 }
 
 export function DocumentInput({ onDocumentLoad }: DocumentInputProps) {
-  const [url, setUrl] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-
-  const getFileTypeFromUrl = (url: string) => {
-    const extension = url.split(".").pop()?.toLowerCase()
-    switch (extension) {
-      case "pdf":
-        return "pdf"
-      case "doc":
-      case "docx":
-        return "word"
-      case "xls":
-      case "xlsx":
-        return "excel"
-      default:
-        return "pdf"
-    }
-  }
-
-  const getFileNameFromUrl = (url: string) => {
-    return url.split("/").pop() || "document"
-  }
+  const [url, setUrl] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!url.trim()) return
+    e.preventDefault();
+    if (!url.trim()) return;
 
-    setIsLoading(true)
+    setIsLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    const trimmedUrl = url.trim();
     try {
-      const documentData = await extractDocumentData(url);
-      const fileType = getFileTypeFromUrl(url)
-      const fileName = getFileNameFromUrl(url)
-      onDocumentLoad(url, fileName, fileType,documentData)
-    } catch (error) {
-      console.error("Error loading document:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+      // 🔍 If it's a PDF, handle locally
+      if (trimmedUrl.toLowerCase().endsWith(".pdf")) {
 
-const extractDocumentData = async (url: string): Promise<string> => {
-  try {
-    const googleDocMatch = url.match(/docs\.google\.com\/document\/d\/([^/]+)/);
-    if (googleDocMatch) {
-      const docId = googleDocMatch[1];
-      const exportUrl = `https://docs.google.com/document/d/${docId}/export?format=txt`;
-      const response = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(exportUrl)}`);
-      if (!response.ok) throw new Error('Failed to fetch Google Doc');
-      return await response.text();
-    }
+        console.log('====================================');
+        console.log("added");
+        console.log('====================================');
+        let fullText = "";
 
-    if (url.endsWith('.txt') || url.endsWith('.json')) {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Failed to fetch text file');
-      return await response.text();
-    }
+        const loadingTask =await getDocument(trimmedUrl);
+        console.log("loadingTask", loadingTask);
 
-    if (url.endsWith('.pdf')) {
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-      const loadingTask = pdfjsLib.getDocument(proxyUrl);
-      const pdf = await loadingTask.promise;
+        const pdf = await loadingTask.promise;
+        console.log("pdf", pdf);
 
-      let fullText = '';
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        const strings = content.items.map((item: any) => item.str);
-        fullText += strings.join(' ') + '\n\n';
+        const metadata = (await pdf.getMetadata())?.metadata || {};
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+          try {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const strings = content.items
+              .filter((item: any) => item.str && typeof item.str === "string")
+              .map((item: any) => item.str);
+            fullText += strings.join(" ") + "\n\n";
+          } catch (pageError) {
+            console.warn(`Error extracting text from page ${i}:`, pageError);
+            fullText += `[Page ${i}: Content extraction failed]\n\n`;
+          }
+        }
+
+        // Send data to parent
+        onDocumentLoad(trimmedUrl, "Document.pdf", "pdf", {
+          content: fullText.trim() || "No text content found in PDF",
+          metadata,
+          processedAt: new Date().toISOString(),
+        });
+
+        setSuccess("Successfully loaded PDF document");
+        setUrl("");
+      } else {
+        const response = await fetch("/api/documents/process", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ url: url.trim() }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            result.details || result.error || "Failed to process document"
+          );
+        }
+
+        if (result.success && result.data) {
+          const {
+            url: processedUrl,
+            name,
+            type,
+            content,
+            metadata,
+          } = result.data;
+
+          // Pass the processed document data to parent component
+          onDocumentLoad(processedUrl, name, type, {
+            content,
+            metadata,
+            processedAt: result.data.processedAt,
+          });
+
+          setSuccess(`Successfully loaded ${name}`);
+          setUrl(""); // Clear the input
+        } else {
+          throw new Error("Invalid response from server");
+        }
       }
-
-      return fullText || `No text content found in PDF: ${url}`;
+    } catch (error) {
+      console.error("Error processing document:", error);
+      setError(
+        error instanceof Error ? error.message : "Failed to process document"
+      );
+    } finally {
+      setIsLoading(false);
     }
-
-    return `Unsupported file type. Loaded from: ${url}`;
-  } catch (error) {
-    console.error('Error extracting document data:', error);
-    return `Failed to extract content from: ${url}`;
-  }
-};
+  };
 
   const getFileIcon = (type: string) => {
     switch (type) {
       case "pdf":
-        return <FileText className="h-4 w-4" />
+        return <FileText className="h-4 w-4" />;
       case "excel":
-        return <FileSpreadsheet className="h-4 w-4" />
+        return <FileSpreadsheet className="h-4 w-4" />;
       default:
-        return <File className="h-4 w-4" />
+        return <File className="h-4 w-4" />;
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
@@ -117,7 +152,9 @@ const extractDocumentData = async (url: string): Promise<string> => {
       <Card className="p-5 bg-white/60 border-gray-200/50">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">Document URL</label>
+            <label className="text-sm font-medium text-gray-700 mb-2 block">
+              Document URL
+            </label>
             <div className="relative">
               <Link className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -130,33 +167,98 @@ const extractDocumentData = async (url: string): Promise<string> => {
               />
             </div>
           </div>
+
           <Button
             type="submit"
             disabled={!url.trim() || isLoading}
             className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-200"
           >
-            {isLoading ? "Loading..." : "Load Document"}
+            {isLoading ? (
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Processing...</span>
+              </div>
+            ) : (
+              "Load Document"
+            )}
           </Button>
         </form>
 
+        {/* Status Messages */}
+        {/* {error && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-start space-x-2">
+            <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+            <div className="text-sm text-red-700">
+              <strong>Error:</strong> {error}
+            </div>
+          </div>
+        )}
+
+        {success && (
+          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md flex items-start space-x-2">
+            <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+            <div className="text-sm text-green-700">
+              <strong>Success:</strong> {success}
+            </div>
+          </div>
+        )} */}
+
         <div className="mt-6 pt-6 border-t border-gray-200/50">
-          <h4 className="text-sm font-medium text-gray-700 mb-3">Supported formats:</h4>
-          <div className="grid grid-cols-3 gap-3">
+          <h4 className="text-sm font-medium text-gray-700 mb-3">
+            Supported formats:
+          </h4>
+          <div className="grid grid-cols-2 gap-3">
             <div className="flex items-center space-x-2 text-xs text-gray-600">
               <FileText className="h-4 w-4 text-red-500" />
-              <span>PDF</span>
+              <span>PDF Files</span>
             </div>
             <div className="flex items-center space-x-2 text-xs text-gray-600">
               <File className="h-4 w-4 text-blue-500" />
-              <span>Word</span>
+              <span>Word Documents</span>
             </div>
             <div className="flex items-center space-x-2 text-xs text-gray-600">
               <FileSpreadsheet className="h-4 w-4 text-green-500" />
-              <span>Excel</span>
+              <span>Excel Files</span>
+            </div>
+            <div className="flex items-center space-x-2 text-xs text-gray-600">
+              <File className="h-4 w-4 text-orange-500" />
+              <span>Google Docs</span>
             </div>
           </div>
         </div>
+
+        {/* <div className="mt-4 pt-4 border-t border-gray-200/50">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">
+            Test Documents:
+          </h4>
+          <div className="space-y-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-xs"
+              onClick={() =>
+                setUrl(
+                  "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+                )
+              }
+            >
+              📄 Sample PDF Document
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-xs"
+              onClick={() =>
+                setUrl(
+                  "https://docs.google.com/document/d/10FWZnhcrbszFVqS5TrG5FllUy9JA5Ku0BAxGM5f48sU/edit?usp=sharing"
+                )
+              }
+            >
+              📝 Sample Google Doc
+            </Button>
+          </div>
+        </div> */}
       </Card>
     </div>
-  )
+  );
 }

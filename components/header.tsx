@@ -2,12 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { FileText, Menu, Sparkles } from "lucide-react";
 
-interface HeaderProps {
-  setOpen: (open: boolean) => void;
-  isOpen: boolean;
-}
-
-export function Header({setOpen,isOpen}: HeaderProps) {
+export function Header({setOpen,isOpen}) {
   return (
     <header className="bg-white/80 backdrop-blur-md border-b border-gray-200/50 shadow-sm">
       <div className="px-4 md:px-6 py-2">
@@ -30,7 +25,7 @@ export function Header({setOpen,isOpen}: HeaderProps) {
             variant="outline"
             size="sm"
             onClick={() => setOpen(true)}
-            className="bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 backdrop-blur-md"
+            className="inline-block lg:hidden bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 backdrop-blur-md"
           >
             <Menu className="h-8 w-8 text-white" />
           </Button>

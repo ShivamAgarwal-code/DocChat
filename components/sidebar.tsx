@@ -18,7 +18,7 @@ export function Sidebar({ children, isOpen, onToggle }: SidebarProps) {
       <div
         className={cn(
           "bg-white/80 backdrop-blur-md max-sm:z-50 border-r border-gray-200/50 transition-all duration-300 ease-in-out shadow-sm",
-          isOpen ? "w-80" : "w-0",
+          isOpen ? "w-80 h-full overflow-y-auto" : "w-0",
         )}
       >
         <div className={cn("h-full overflow-hidden", isOpen ? "opacity-100" : "opacity-0")}>
